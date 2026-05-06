@@ -8,7 +8,19 @@
 
 一个面向地震行业的多源数据智能采集与分析平台，自动爬取地震监测数据、学术论文、行业资讯，提供统计分析洞察和可视化仪表盘。
 
-![Dashboard Preview](docs/dashboard.png)
+## 系统截图
+
+### 仪表盘概览
+![Dashboard](assets/image-039e3464-2e41-4fe9-9880-a7f6374e32ec.png)
+
+### 地震事件追踪
+![Earthquakes](assets/image-66b8bdbb-2123-4648-8791-b318254fc874.png)
+
+### 学术论文搜索
+![Articles](assets/image-4e4a6efc-772f-4da8-b506-3a99ad2d7a67.png)
+
+### 数据源管理
+![DataSources](assets/image-6d3c14c2-e748-48fe-8fa3-b8356b26a194.png)
 
 ## 功能特性
 
