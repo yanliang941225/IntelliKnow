@@ -89,7 +89,7 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/IntelliKnow.git
+git clone https://github.com/yanliang941225/IntelliKnow.git
 cd IntelliKnow
 ```
 
@@ -288,5 +288,5 @@ DUPLICATE_THRESHOLD = 0.85
 
 ## 联系方式
 
-- 项目主页：https://github.com/yourusername/IntelliKnow
-- 问题反馈：https://github.com/yourusername/IntelliKnow/issues
+- 项目主页：https://github.com/yanliang941225/IntelliKnow
+- 问题反馈：https://github.com/yanliang941225/IntelliKnow/issues
