@@ -153,8 +153,8 @@ class CrawlerScheduler:
                         author = item.author[:500] if item.author and len(item.author) > 500 else item.author
                         article_service.create_article(
                             title=item.title[:1000] if item.title and len(item.title) > 1000 else item.title,
-                            content=item.summary or "",
-                            summary=item.summary[:2000] if item.summary and len(item.summary) > 2000 else item.summary,
+                            content=item.content or item.summary or "",
+                            summary=(item.content or item.summary or "")[:2000][:500],
                             url=item.url,
                             source=item.source or source.name,
                             author=author,

@@ -43,8 +43,28 @@ def get_earthquakes(
         end_time=end_time
     )
 
+    # 转换时间为北京时间 (+8小时)
+    from datetime import timedelta
+    beijing_offset = timedelta(hours=8)
+    items = []
+    for e in events:
+        item = {
+            "id": e.id,
+            "event_id": e.event_id,
+            "magnitude": e.magnitude,
+            "latitude": e.latitude,
+            "longitude": e.longitude,
+            "depth": e.depth,
+            "location": e.location,
+            "region": e.region,
+            "time": (e.time + beijing_offset).strftime("%Y-%m-%dT%H:%M:%S") if e.time else None,
+            "source": e.source,
+            "created_at": e.created_at.strftime("%Y-%m-%dT%H:%M:%S") if e.created_at else None
+        }
+        items.append(item)
+
     return {
-        "items": events,
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size

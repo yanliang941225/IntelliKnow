@@ -269,6 +269,9 @@ class StatisticsService:
             desc(Article.published_at)
         ).limit(10).all()
 
+        # 时间转北京时间 (+8小时)
+        beijing_offset = timedelta(hours=8)
+        
         return {
             "earthquake_count": earthquake_count,
             "article_count": article_count,
@@ -280,7 +283,7 @@ class StatisticsService:
                     "latitude": e.latitude,
                     "longitude": e.longitude,
                     "location": e.location,
-                    "time": e.time.isoformat() if e.time else None,
+                    "time": (e.time + beijing_offset).strftime("%Y-%m-%dT%H:%M:%S") if e.time else None,
                     "source": e.source,
                     "depth": e.depth,
                     "region": e.region

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from core.database import get_db
+from core.translation import translation_service
 from apps.articles.service import ArticleService
 
 router = APIRouter(prefix="/articles", tags=["文章管理"])
@@ -35,6 +36,42 @@ class ArticleResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ArticleWithTranslation(BaseModel):
+    """Article with bilingual translation."""
+    id: int
+    title: str
+    title_zh: Optional[str] = None
+    content: str
+    content_zh: Optional[str] = None
+    summary: str
+    summary_zh: Optional[str] = None
+    url: str
+    source: str
+    author: str
+    published_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TranslationRequest(BaseModel):
+    text: str
+    target_lang: str = "zh"  # "zh" for Chinese, "en" for English
+
+
+class TranslationResponse(BaseModel):
+    original: str
+    translated: str
+    target_lang: str
+
+
+class TranslationContentResponse(BaseModel):
+    """Response for on-demand translation of summary and content."""
+    summary_zh: Optional[str] = None
+    content_zh: Optional[str] = None
 
 
 class ArticleListResponse(BaseModel):
@@ -156,3 +193,89 @@ def get_sources(db: Session = Depends(get_db)):
     """Get all unique sources."""
     service = ArticleService(db)
     return {"sources": service.get_sources()}
+
+
+@router.post("/translate", response_model=TranslationResponse)
+async def translate_text(request: TranslationRequest):
+    """Translate text to specified language."""
+    if request.target_lang == "zh":
+        translated = await translation_service.translate_to_chinese(request.text)
+    else:
+        translated = await translation_service.translate_to_english(request.text)
+
+    if translated is None:
+        raise HTTPException(status_code=500, detail="翻译服务暂时不可用")
+
+    return TranslationResponse(
+        original=request.text,
+        translated=translated,
+        target_lang=request.target_lang
+    )
+
+
+@router.get("/{article_id}/detail", response_model=ArticleWithTranslation)
+async def get_article_with_translation(article_id: int, db: Session = Depends(get_db)):
+    """Get article with automatic translation to Chinese."""
+    service = ArticleService(db)
+    article = service.get_article(article_id)
+
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+
+    # Prepare response with original content
+    response = ArticleWithTranslation(
+        id=article.id,
+        title=article.title,
+        content=article.content or "",
+        summary=article.summary or "",
+        url=article.url,
+        source=article.source,
+        author=article.author,
+        published_at=article.published_at,
+        created_at=article.created_at
+    )
+
+    # Only translate title initially (summary/content translated on demand)
+    title_chinese_chars = sum(1 for c in article.title if '\u4e00' <= c <= '\u9fff')
+    title_needs_translation = len(article.title) > 0 and (title_chinese_chars / len(article.title)) < 0.3
+
+    if title_needs_translation:
+        title_zh = await translation_service.translate_to_chinese(article.title)
+        if title_zh:
+            response.title_zh = title_zh
+
+    return response
+
+
+@router.get("/{article_id}/translate", response_model=TranslationContentResponse)
+async def translate_article_content(article_id: int, db: Session = Depends(get_db)):
+    """Translate article summary and content on demand."""
+    service = ArticleService(db)
+    article = service.get_article(article_id)
+
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+
+    result = TranslationContentResponse()
+
+    # Translate summary
+    if article.summary:
+        summary_chinese_chars = sum(1 for c in article.summary if '\u4e00' <= c <= '\u9fff')
+        summary_needs_translation = (summary_chinese_chars / len(article.summary)) < 0.3
+
+        if summary_needs_translation:
+            summary_zh = await translation_service.translate_to_chinese(article.summary)
+            if summary_zh:
+                result.summary_zh = summary_zh
+
+    # Translate content if different from summary
+    if article.content and article.content != article.summary:
+        content_chinese_chars = sum(1 for c in article.content if '\u4e00' <= c <= '\u9fff')
+        content_needs_translation = (content_chinese_chars / len(article.content)) < 0.3
+
+        if content_needs_translation:
+            content_zh = await translation_service.translate_to_chinese(article.content)
+            if content_zh:
+                result.content_zh = content_zh
+
+    return result

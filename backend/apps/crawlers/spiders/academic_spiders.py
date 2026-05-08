@@ -246,6 +246,18 @@ class OpenAlexSpider(BaseSpider):
 
     BASE_URL = "https://api.openalex.org"
 
+    def _reconstruct_abstract(self, inverted_index: dict) -> str:
+        """Reconstruct abstract text from OpenAlex inverted index."""
+        if not inverted_index:
+            return ""
+        # Sort by position and join words
+        word_positions = []
+        for word, positions in inverted_index.items():
+            for pos in positions:
+                word_positions.append((pos, word))
+        word_positions.sort(key=lambda x: x[0])
+        return " ".join(word for _, word in word_positions)
+
     async def search(self, query: str = "") -> List[Article]:
         """Search papers from OpenAlex."""
         keywords = query or " ".join(self.config.keywords[:2]) if self.config.keywords else "earthquake seismology"
@@ -269,10 +281,11 @@ class OpenAlexSpider(BaseSpider):
                     for author in authorships[:5]
                 ]) + ("..." if len(authorships) > 5 else "")
 
+                abstract = self._reconstruct_abstract(work.get("abstract_inverted_index"))
                 article = Article(
                     title=work.get("title", ""),
-                    content=str(work.get("abstract_inverted_index", "")),
-                    summary=work.get("title", ""),
+                    content=abstract,
+                    summary=abstract[:500] if abstract else work.get("title", ""),
                     url=work.get("doi", ""),
                     source="OpenAlex",
                     author=authors,
@@ -302,11 +315,12 @@ class OpenAlexSpider(BaseSpider):
                 return None
 
             work = response.json()
+            abstract = self._reconstruct_abstract(work.get("abstract_inverted_index"))
 
             return Article(
                 title=work.get("title", ""),
-                content=str(work.get("abstract_inverted_index", "")),
-                summary=work.get("title", ""),
+                content=abstract,
+                summary=abstract[:500] if abstract else work.get("title", ""),
                 url=work.get("doi", ""),
                 source="OpenAlex",
                 published_at=self.parse_datetime(work.get("publication_date", "")) if work.get("publication_date") else None,

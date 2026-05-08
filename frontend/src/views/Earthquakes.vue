@@ -84,7 +84,7 @@ const pagination = ref({
   total: 0
 })
 const filters = ref({
-  min_magnitude: 4.0,
+  min_magnitude: 3.0,
   region: '',
   source: ''
 })
@@ -123,7 +123,7 @@ const fetchData = async () => {
 
 const resetFilters = () => {
   filters.value = {
-    min_magnitude: 4.0,
+    min_magnitude: 3.0,
     region: '',
     source: ''
   }
