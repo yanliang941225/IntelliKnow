@@ -19,57 +19,69 @@ class ArxivSeismologySpider(BaseSpider):
     def __init__(self, config: SpiderConfig = None):
         super().__init__(config or SpiderConfig())
         self.base_url = "https://export.arxiv.org/api/query"
-        self.categories = ["physics.geo-ph", "cs.CY", "eess.SY"]
+        # 只搜索地球物理和地震学相关分类
+        self.seismology_categories = ["physics.geo-ph"]
 
     async def search(self, query: str = "") -> List[Article]:
-        """Search papers from arXiv."""
-        keywords = query or " OR ".join(self.config.keywords[:3]) if self.config.keywords else "seismology OR earthquake"
+        """Search papers from arXiv within seismology categories."""
+        keywords = query or " OR ".join(self.config.keywords[:3]) if self.config.keywords else "earthquake OR seismology OR seismic"
         max_results = min(self.config.max_results, 100)
 
-        url = f"{self.base_url}?search_query=all:{keywords}&start=0&max_results={max_results}&sortBy=submittedDate&sortOrder=descending"
+        articles = []
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
 
-        try:
-            response = await self._fetch_with_retry(url)
-            if not response:
-                return []
+        for category in self.seismology_categories:
+            # 搜索时限定分类：cat:分类名 AND (关键词1 OR 关键词2)
+            url = f"{self.base_url}?search_query=cat:{category}+AND+({keywords})&start=0&max_results={max_results}&sortBy=submittedDate&sortOrder=descending"
 
-            import xml.etree.ElementTree as ET
-            root = ET.fromstring(response.text)
+            try:
+                response = await self._fetch_with_retry(url)
+                if not response:
+                    continue
 
-            articles = []
-            ns = {"atom": "http://www.w3.org/2005/Atom"}
+                import xml.etree.ElementTree as ET
+                root = ET.fromstring(response.text)
 
-            for entry in root.findall("atom:entry", ns):
-                title = entry.find("atom:title", ns)
-                summary = entry.find("atom:summary", ns)
-                published = entry.find("atom:published", ns)
-                author_list = entry.findall("atom:author", ns)
-                link = entry.find("atom:id", ns)
+                for entry in root.findall("atom:entry", ns):
+                    title = entry.find("atom:title", ns)
+                    summary = entry.find("atom:summary", ns)
+                    published = entry.find("atom:published", ns)
+                    author_list = entry.findall("atom:author", ns)
+                    link = entry.find("atom:id", ns)
 
-                authors = ", ".join([
-                    author.find("atom:name", ns).text
-                    for author in author_list
-                    if author.find("atom:name", ns) is not None
-                ])
+                    authors = ", ".join([
+                        author.find("atom:name", ns).text
+                        for author in author_list
+                        if author.find("atom:name", ns) is not None
+                    ])
 
-                article = Article(
-                    title=self._clean_text(title.text if title is not None else ""),
-                    content=self._clean_text(summary.text if summary is not None else ""),
-                    summary=self._clean_text(summary.text[:500] if summary is not None else ""),
-                    url=link.text if link is not None else "",
-                    source="arXiv",
-                    author=authors,
-                    published_at=self.parse_datetime(published.text if published is not None else ""),
-                    keywords=[keywords]
-                )
-                articles.append(article)
+                    article = Article(
+                        title=self._clean_text(title.text if title is not None else ""),
+                        content=self._clean_text(summary.text if summary is not None else ""),
+                        summary=self._clean_text(summary.text[:500] if summary is not None else ""),
+                        url=link.text if link is not None else "",
+                        source="arXiv",
+                        author=authors,
+                        published_at=self.parse_datetime(published.text if published is not None else ""),
+                        keywords=[keywords]
+                    )
+                    articles.append(article)
 
-            logger.info(f"[ArxivSpider] Fetched {len(articles)} papers")
-            return articles
+                logger.info(f"[ArxivSpider] Fetched {len(articles)} papers from category {category}")
 
-        except Exception as e:
-            logger.error(f"[ArxivSpider] Error: {e}")
-            return []
+            except Exception as e:
+                logger.error(f"[ArxivSpider] Error fetching category {category}: {e}")
+
+        # 去重（同一论文可能出现在多个分类）
+        seen_urls = set()
+        unique_articles = []
+        for article in articles:
+            if article.url not in seen_urls:
+                seen_urls.add(article.url)
+                unique_articles.append(article)
+
+        logger.info(f"[ArxivSpider] Total unique papers: {len(unique_articles)}")
+        return unique_articles[:max_results]
 
     async def fetch_article(self, article_id: str) -> Optional[Article]:
         """Fetch single paper details by arXiv ID."""

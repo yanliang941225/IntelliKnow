@@ -86,7 +86,7 @@
           <template #header>
             <span>最近地震事件</span>
           </template>
-          <el-table :data="overview.recent_events" stripe style="width: 100%">
+          <el-table :data="overview.recent_events?.slice(0, 10)" stripe style="width: 100%">
             <el-table-column prop="magnitude" label="震级" width="80">
               <template #default="{ row }">
                 <el-tag :type="getMagnitudeType(row.magnitude)" size="small">
@@ -100,7 +100,7 @@
                 {{ formatTime(row.time) }}
               </template>
             </el-table-column>
-            <el-table-column prop="source" label="来源" width="100" />
+            <el-table-column prop="source" label="来源" width="120" />
           </el-table>
         </el-card>
       </el-col>
@@ -401,6 +401,6 @@ onUnmounted(() => {
 }
 
 .chart-container-small {
-  height: 300px;
+  height: 400px;
 }
 </style>
