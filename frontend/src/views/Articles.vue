@@ -56,7 +56,7 @@
 
     <el-dialog
       v-model="dialogVisible"
-      :title="currentArticle?.title_zh || currentArticle?.title || '论文详情'"
+      :title="currentArticle?.title || '论文详情'"
       width="75%"
       top="3vh"
       class="article-dialog"
@@ -65,8 +65,8 @@
       <div v-if="currentArticle" class="article-detail">
         <!-- Title Section -->
         <div class="title-section">
-          <h2 class="article-title">{{ currentArticle.title }}</h2>
-          <h2 v-if="currentArticle.title_zh" class="article-title-zh">{{ currentArticle.title_zh }}</h2>
+          <h2 class="article-title-zh" v-if="currentArticle.title_zh">{{ currentArticle.title_zh }}</h2>
+          <h2 class="article-title" v-else>{{ currentArticle.title }}</h2>
         </div>
 
         <!-- Meta Info -->
@@ -161,10 +161,12 @@
             v-if="!currentArticle.summary_zh && !currentArticle.content_zh"
             label="中文翻译"
             name="chinese"
-            disabled
           >
             <template #label>
-              <span>中文翻译 <el-tag size="small" type="info">无需翻译</el-tag></span>
+              <span v-if="translatingChinese">
+                <el-icon class="is-loading"><Loading /></el-icon> 翻译中...
+              </span>
+              <span v-else>中文翻译</span>
             </template>
           </el-tab-pane>
         </el-tabs>
@@ -186,7 +188,9 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const currentArticle = ref(null)
 const translating = ref(false)
+const translatingChinese = ref(false)
 const activeTab = ref('original')
+const isOriginalChinese = ref(false)
 
 const pagination = ref({
   page: 1,
@@ -239,24 +243,36 @@ const resetFilters = () => {
   fetchData()
 }
 
-const viewArticle = (article) => {
+const viewArticle = async (article) => {
   currentArticle.value = { ...article, summary_zh: null, content_zh: null }
   dialogVisible.value = true
   activeTab.value = 'original'
+  isOriginalChinese.value = false
+
+  // Translate title on view
+  if (article.title) {
+    try {
+      const res = await articleApi.translateTitle(article.id)
+      if (res.title_zh) currentArticle.value.title_zh = res.title_zh
+    } catch (error) {
+      console.error('Failed to translate title:', error)
+    }
+  }
 }
 
 const loadTranslations = async () => {
   if (currentArticle.value.summary_zh || currentArticle.value.content_zh) return
 
-  translating.value = true
+  translatingChinese.value = true
   try {
     const res = await articleApi.translateContent(currentArticle.value.id)
     if (res.summary_zh) currentArticle.value.summary_zh = res.summary_zh
     if (res.content_zh) currentArticle.value.content_zh = res.content_zh
+    if (res.is_chinese) isOriginalChinese.value = true
   } catch (error) {
     console.error('Failed to fetch translation:', error)
   } finally {
-    translating.value = false
+    translatingChinese.value = false
   }
 }
 
@@ -340,10 +356,10 @@ onMounted(() => {
 }
 
 .article-title-zh {
-  font-size: 18px;
-  font-weight: 500;
-  color: #409eff;
-  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
   line-height: 1.4;
 }
 

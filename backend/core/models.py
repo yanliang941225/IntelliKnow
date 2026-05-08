@@ -98,6 +98,8 @@ class Article(Base):
     created_at = Column(DateTime, default=datetime.now)
     content_hash = Column(String(64), comment="内容指纹", index=True)
     extra_info = Column(JSON, comment="扩展信息")
+    summary_zh = Column(Text, comment="中文摘要")
+    content_zh = Column(Text, comment="中文内容")
 
     industry = relationship("Industry", back_populates="articles")
     fingerprints = relationship("ContentFingerprint", back_populates="article")

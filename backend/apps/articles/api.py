@@ -28,6 +28,8 @@ class ArticleResponse(BaseModel):
     title: str
     content: str
     summary: str
+    summary_zh: Optional[str] = None
+    content_zh: Optional[str] = None
     url: str
     source: str
     author: str
@@ -70,8 +72,10 @@ class TranslationResponse(BaseModel):
 
 class TranslationContentResponse(BaseModel):
     """Response for on-demand translation of summary and content."""
+    title_zh: Optional[str] = None
     summary_zh: Optional[str] = None
     content_zh: Optional[str] = None
+    is_chinese: bool = False  # True if original content is already in Chinese
 
 
 class ArticleListResponse(BaseModel):
@@ -247,6 +251,19 @@ async def get_article_with_translation(article_id: int, db: Session = Depends(ge
     return response
 
 
+def contains_chinese(text: str) -> bool:
+    """Check if text contains significant Chinese characters (>30% Chinese)."""
+    if not text:
+        return False
+    chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    return (chinese_chars / len(text)) > 0.3
+
+
+class TitleTranslationResponse(BaseModel):
+    """Response for title translation."""
+    title_zh: Optional[str] = None
+
+
 @router.get("/{article_id}/translate", response_model=TranslationContentResponse)
 async def translate_article_content(article_id: int, db: Session = Depends(get_db)):
     """Translate article summary and content on demand."""
@@ -258,24 +275,50 @@ async def translate_article_content(article_id: int, db: Session = Depends(get_d
 
     result = TranslationContentResponse()
 
-    # Translate summary
-    if article.summary:
-        summary_chinese_chars = sum(1 for c in article.summary if '\u4e00' <= c <= '\u9fff')
-        summary_needs_translation = (summary_chinese_chars / len(article.summary)) < 0.3
+    # Always translate title if it's not in Chinese
+    if article.title and not contains_chinese(article.title):
+        title_zh = await translation_service.translate_to_chinese(article.title)
+        if title_zh:
+            result.title_zh = title_zh
 
-        if summary_needs_translation:
-            summary_zh = await translation_service.translate_to_chinese(article.summary)
-            if summary_zh:
-                result.summary_zh = summary_zh
+    # Check if content is already in Chinese
+    original_is_chinese = contains_chinese(article.summary or article.content or "")
+    result.is_chinese = original_is_chinese
 
-    # Translate content if different from summary
-    if article.content and article.content != article.summary:
-        content_chinese_chars = sum(1 for c in article.content if '\u4e00' <= c <= '\u9fff')
-        content_needs_translation = (content_chinese_chars / len(article.content)) < 0.3
+    if original_is_chinese:
+        # Already Chinese, no translation needed
+        return result
 
-        if content_needs_translation:
-            content_zh = await translation_service.translate_to_chinese(article.content)
-            if content_zh:
-                result.content_zh = content_zh
+    # Translate summary if not already in Chinese
+    if article.summary and not contains_chinese(article.summary):
+        summary_zh = await translation_service.translate_to_chinese(article.summary)
+        if summary_zh:
+            result.summary_zh = summary_zh
+
+    # Translate content if different from summary and not Chinese
+    if article.content and article.content != article.summary and not contains_chinese(article.content):
+        content_zh = await translation_service.translate_to_chinese(article.content)
+        if content_zh:
+            result.content_zh = content_zh
+
+    return result
+
+
+@router.get("/{article_id}/title", response_model=TitleTranslationResponse)
+async def translate_article_title(article_id: int, db: Session = Depends(get_db)):
+    """Translate article title on demand."""
+    service = ArticleService(db)
+    article = service.get_article(article_id)
+
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+
+    result = TitleTranslationResponse()
+
+    # Translate title if it's not in Chinese
+    if article.title and not contains_chinese(article.title):
+        title_zh = await translation_service.translate_to_chinese(article.title)
+        if title_zh:
+            result.title_zh = title_zh
 
     return result

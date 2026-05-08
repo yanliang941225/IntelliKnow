@@ -12,6 +12,7 @@ export const articleApi = {
   getById: (id) => request.get(`/articles/${id}`),
   getWithTranslation: (id) => request.get(`/articles/${id}/detail`),
   translateContent: (id) => request.get(`/articles/${id}/translate`),
+  translateTitle: (id) => request.get(`/articles/${id}/title`),
   search: (q, params) => request.get('/articles/search/', { q, ...params }),
   delete: (id) => request.delete(`/articles/${id}`),
   getSources: () => request.get('/articles/sources/list')
